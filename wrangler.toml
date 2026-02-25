@@ -10,6 +10,6 @@ compatibility_date = "2024-12-01"
 
 [[kv_namespaces]]
 binding = "KB"
-id = "5345e4ee800e19a0227226fed5ecfe81"
+id = "db6ff0dd71ff4e9d9671ce6dc5af0b5c"
 # 部署前先创建: wrangler kv namespace create KB
 # 然后把返回的 id 填到上面
