@@ -1,4 +1,4 @@
-name = "cf-kb"
+name = "tt"
 main = "src/index.js"
 compatibility_date = "2024-12-01"
 
