@@ -4,8 +4,8 @@ compatibility_date = "2024-12-01"
 
 [vars]
 # 在 CF Dashboard 的 Workers Settings 里配置，或用 wrangler secret put
-# OPENAI_API_KEY = "sk-xxx"
-# OPENAI_BASE_URL = "https://api.openai.com/v1"  # 可换成任意兼容接口
+OPENAI_API_KEY = "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"
+OPENAI_BASE_URL = "https://integrate.api.nvidia.com/v1"
 ADMIN_USER = "admin"
 ADMIN_PASS = "qwerasdf"
 
