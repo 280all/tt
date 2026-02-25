@@ -1,4 +1,5 @@
 import JSZip from 'jszip';
+import { extractText } from 'unpdf';
 
 // 从 docx 提取纯文本
 export async function parseDocx(buffer) {
@@ -48,6 +49,13 @@ export async function parseXlsx(buffer) {
     }
   }
   return texts;
+}
+
+// 从 PDF 提取纯文本
+export async function parsePdf(buffer) {
+  const { text } = await extractText(new Uint8Array(buffer));
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  return lines;
 }
 
 // 文本分块

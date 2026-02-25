@@ -1,19 +1,30 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { parseDocx, parseXlsx, chunkTexts } from './parser.js';
+import { parseDocx, parseXlsx, parsePdf, chunkTexts } from './parser.js';
 import { answerQuestion } from './llm.js';
 
 const app = new Hono();
 app.use('*', cors());
 
-// 管理员鉴权中间件
+// 管理员鉴权中间件（session）
 function adminAuth(c, next) {
-  const token = c.req.header('Authorization')?.replace('Bearer ', '');
-  if (token !== c.env.ADMIN_TOKEN) {
-    return c.json({ error: '未授权' }, 401);
-  }
+  const sid = c.req.header('Authorization')?.replace('Bearer ', '');
+  const valid = c.env._sessions && c.env._sessions.has(sid);
+  if (!valid) return c.json({ error: '未登录' }, 401);
   return next();
 }
+
+// 登录接口
+app.post('/api/login', async (c) => {
+  const { username, password } = await c.req.json();
+  if (username !== c.env.ADMIN_USER || password !== c.env.ADMIN_PASS) {
+    return c.json({ error: '账号或密码错误' }, 401);
+  }
+  const sid = crypto.randomUUID();
+  if (!c.env._sessions) c.env._sessions = new Map();
+  c.env._sessions.set(sid, Date.now());
+  return c.json({ ok: true, token: sid });
+});
 
 // 上传文档 -> 解析 -> 存入 KV
 app.post('/api/upload', adminAuth, async (c) => {
@@ -29,10 +40,12 @@ app.post('/api/upload', adminAuth, async (c) => {
     texts = await parseDocx(buf);
   } else if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
     texts = await parseXlsx(buf);
+  } else if (name.endsWith('.pdf')) {
+    texts = await parsePdf(buf);
   } else if (name.endsWith('.txt')) {
     texts = new TextDecoder().decode(buf).split('\n').filter(Boolean);
   } else {
-    return c.json({ error: '仅支持 docx/xlsx/txt' }, 400);
+    return c.json({ error: '仅支持 docx/xlsx/pdf/txt' }, 400);
   }
 
   const chunks = chunkTexts(texts);
@@ -147,7 +160,7 @@ const ADMIN_HTML = `<!DOCTYPE html>
 body{font-family:-apple-system,sans-serif;background:#f5f5f5;padding:20px;max-width:600px;margin:0 auto}
 h2{margin-bottom:16px}
 .card{background:#fff;border-radius:8px;padding:16px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.1)}
-input[type=password],input[type=file]{width:100%;padding:8px;margin:8px 0;border:1px solid #ddd;border-radius:6px}
+input[type=password],input[type=text],input[type=file]{width:100%;padding:8px;margin:8px 0;border:1px solid #ddd;border-radius:6px}
 button{padding:8px 16px;background:#1677ff;color:#fff;border:none;border-radius:6px;cursor:pointer;margin:4px}
 button.danger{background:#ff4d4f}
 #log{margin-top:12px;padding:10px;background:#f9f9f9;border-radius:6px;font-size:13px;white-space:pre-wrap;min-height:40px}
@@ -157,12 +170,15 @@ button.danger{background:#ff4d4f}
 <body>
 <h2>知识库管理</h2>
 <div class="card">
-  <label>管理员 Token</label>
-  <input type="password" id="token" placeholder="输入 ADMIN_TOKEN">
+  <label>管理员登录</label>
+  <input type="text" id="user" placeholder="用户名">
+  <input type="password" id="pass" placeholder="密码">
+  <button onclick="login()">登录</button>
+  <div id="auth-status"></div>
 </div>
 <div class="card">
-  <label>上传文档 (docx / xlsx / txt)</label>
-  <input type="file" id="file" accept=".docx,.xlsx,.xls,.txt">
+  <label>上传文档 (docx / xlsx / pdf / txt)</label>
+  <input type="file" id="file" accept=".docx,.xlsx,.xls,.pdf,.txt">
   <button onclick="upload()">上传</button>
   <button class="danger" onclick="clearKB()">清空知识库</button>
   <button onclick="loadFiles()">刷新列表</button>
@@ -173,8 +189,19 @@ button.danger{background:#ff4d4f}
   <div id="files">点击"刷新列表"查看</div>
 </div>
 <script>
-function hdr(){return{Authorization:'Bearer '+document.getElementById('token').value}}
+let TOKEN='';
+function hdr(){return{Authorization:'Bearer '+TOKEN}}
 function log(s){document.getElementById('log').textContent=s}
+async function login(){
+  const u=document.getElementById('user').value,p=document.getElementById('pass').value;
+  if(!u||!p)return;
+  try{
+    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
+    const d=await r.json();
+    if(d.token){TOKEN=d.token;document.getElementById('auth-status').textContent='登录成功';loadFiles();}
+    else{document.getElementById('auth-status').textContent=d.error||'登录失败';}
+  }catch(e){document.getElementById('auth-status').textContent='网络错误';}
+}
 async function upload(){
   const f=document.getElementById('file').files[0];
   if(!f)return log('请选择文件');

@@ -46,8 +46,7 @@ export async function answerQuestion(env, chunks, question) {
   const messages = [
     {
       role: 'system',
-      content: `你是一个客服助手。根据以下知识库内容回答用户问题。
-如果知识库中没有相关信息，请如实告知。回答要简洁准确。
+      content: `你是一个客服助手。根据以下知识库内容回答用户问题。帮助现场解决问题。
 
 知识库内容：
 ${context}`,
